@@ -1,21 +1,23 @@
-use std::{collections::HashMap, fmt::Debug};
+use std::{collections::{HashMap, HashSet}, fmt::Debug, sync::Arc};
+
+use crate::pddl_condition::{PDDLPredicate, PDDLPredicateName};
+
 /// The parameters of an action, should be held
 /// within the action itself.
-pub trait PDDLAction: Debug {
-    fn preconditions(&self) -> &HashMap<String, bool>;
-    fn effects(&self) -> &HashMap<String, bool>;
+pub trait PDDLAction<Name: PDDLPredicateName>: Debug {
+    fn preconditions(&self) -> &HashMap<Name, bool>;
+    fn effects(&self) -> &HashMap<Name, bool>;
     fn action_cost(&self) -> f32;
-    fn perform(&mut self, delta: f32) -> bool;
+    fn perform(&mut self, domain: &dyn PDDLDomain<Name>, delta: f32) -> bool;
 }
 
 /// The parameters of a goal, should be held
 /// within the goal itself.
-pub trait PDDLGoal: Debug {
+pub trait PDDLGoal<Name: PDDLPredicateName>: Debug {
     fn priority(&self) -> f32;
-    fn desired_state(&self) -> &HashMap<String, bool>;
+    fn desired_state(&self) -> &HashMap<Name, bool>;
 }
 
-pub trait PDDLDomain {
-    fn domain(&self) -> &HashMap<String, bool>;
-    fn modify(&self, name: String, value: bool);
+pub trait PDDLDomain<Name: PDDLPredicateName> {
+    fn predicates(&self) -> &HashMap<Name, Arc<dyn PDDLPredicate<PredicateName = Name>>>;
 }
