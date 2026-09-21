@@ -1,7 +1,6 @@
 use std::{collections::{HashMap, HashSet}, hash::Hash, ops::Deref, sync::Arc};
 
 pub trait PDDLPredicateName: Sized + Clone + Eq + Hash + 'static {
-    fn name(&self) -> String;
 }
 
 /// Parameters should be handled inside of the type.

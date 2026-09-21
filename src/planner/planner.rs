@@ -75,7 +75,7 @@ impl<Name: PDDLPredicateName> PDDLPlanNode<Name> {
         let _ = state.remove(&predicate);
     }
 }
-impl<Name: PDDLPredicateName> Debug for PDDLPlanNode<Name> {
+impl<Name: PDDLPredicateName + Debug> Debug for PDDLPlanNode<Name> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PlanNode")
             .field("action", &self.action)
