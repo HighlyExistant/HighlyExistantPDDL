@@ -1,15 +1,9 @@
 use std::{collections::{HashMap, HashSet}, hash::Hash, ops::Deref, sync::Arc};
 
-pub trait PDDLPredicateName: Sized + Clone + Eq + Hash + 'static {
-}
+/// Corresponds to a parameter in a [`PDDLPredicate`], to assign 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PDDLVariable(usize);
 
-/// Parameters should be handled inside of the type.
-pub trait PDDLPredicate: 'static + Send + Sync {
-    type PredicateName: PDDLPredicateName;
-    fn name(&self) -> Self::PredicateName;
-    fn eval(&self) -> bool;
-}
-
-pub trait PDDLState {
-    fn has_predicate(&self, name: String, parameters: &Vec<String>) -> bool;
+pub trait PDDLPredicate: Sized + Clone + Eq + Hash + 'static {
+    // fn eval(&self) -> bool;
 }

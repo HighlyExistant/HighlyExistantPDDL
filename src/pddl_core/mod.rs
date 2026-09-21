@@ -1,17 +1,20 @@
 use std::{collections::{HashMap, HashSet}, fmt::Debug, sync::Arc};
 
-use crate::pddl_condition::{PDDLPredicate, PDDLPredicateName};
+use crate::pddl_condition::PDDLPredicate;
 
 /// The parameters of an action, should be held
 /// within the action itself.
-pub trait PDDLAction<Name: PDDLPredicateName> {
-    fn preconditions(&self) -> &HashMap<Name, bool>;
-    fn effects(&self) -> &HashMap<Name, bool>;
+pub trait PDDLAction<Predicate: PDDLPredicate> {
+    fn preconditions(&self) -> &HashMap<Predicate, bool>;
+    fn effects(&self) -> &HashMap<Predicate, bool>;
     fn action_cost(&self) -> f32;
-    fn perform(&mut self, domain: &dyn PDDLDomain<Name>, delta: f32) -> bool;
+    fn perform(&mut self, domain: &dyn PDDLDomain<Predicate>, delta: f32) -> bool;
+}
+pub trait PDDLActionFactory<Predicate: PDDLPredicate> {
+    // fn construct(&self, parameters: HashMap<>) -> Arc<dyn PDDLAction<Predicate>>;
 }
 
-impl<Name: PDDLPredicateName + Debug> Debug for dyn PDDLAction<Name> {
+impl<Predicate: PDDLPredicate + Debug> Debug for dyn PDDLAction<Predicate> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PDDLAction")
             .field("preconditions", self.preconditions())
@@ -23,11 +26,11 @@ impl<Name: PDDLPredicateName + Debug> Debug for dyn PDDLAction<Name> {
 
 /// The parameters of a goal, should be held
 /// within the goal itself.
-pub trait PDDLGoal<Name: PDDLPredicateName> {
+pub trait PDDLGoal<Predicate: PDDLPredicate> {
     fn priority(&self) -> f32;
-    fn desired_state(&self) -> &HashMap<Name, bool>;
+    fn desired_state(&self) -> &HashMap<Predicate, bool>;
 }
-impl<Name: PDDLPredicateName + Debug> Debug for dyn PDDLGoal<Name> {
+impl<Predicate: PDDLPredicate + Debug> Debug for dyn PDDLGoal<Predicate> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PDDLGoal")
             .field("priority", &self.priority())
@@ -36,6 +39,6 @@ impl<Name: PDDLPredicateName + Debug> Debug for dyn PDDLGoal<Name> {
     }
 }
 
-pub trait PDDLDomain<Name: PDDLPredicateName> {
-    fn predicates(&self) -> &HashMap<Name, Arc<dyn PDDLPredicate<PredicateName = Name>>>;
+pub trait PDDLDomain<Predicate: PDDLPredicate> {
+    fn predicates(&self) -> &HashSet<Predicate>;
 }

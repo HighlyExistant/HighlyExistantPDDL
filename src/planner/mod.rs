@@ -1,17 +1,16 @@
 use std::{fmt::Debug, sync::Arc};
 
-use crate::{pddl_condition::PDDLPredicateName, pddl_core::PDDLAction};
-
+use crate::{pddl_condition::PDDLPredicate, pddl_core::PDDLAction};
 
 pub mod planner;
 #[derive(Debug,Clone)]
-pub struct PDDLPlan<Name: PDDLPredicateName> {
-    actions: Vec<Arc<dyn PDDLAction<Name>>>,
+pub struct PDDLPlan<Predicate: PDDLPredicate> {
+    actions: Vec<Arc<dyn PDDLAction<Predicate>>>,
     steps_left: usize,
 }
 
-impl<Name: PDDLPredicateName> Iterator for PDDLPlan<Name> {
-    type Item = Arc<dyn PDDLAction<Name>>;
+impl<Predicate: PDDLPredicate> Iterator for PDDLPlan<Predicate> {
+    type Item = Arc<dyn PDDLAction<Predicate>>;
     fn next(&mut self) -> Option<Self::Item> {
         if self.steps_left == 0 {
             return None;

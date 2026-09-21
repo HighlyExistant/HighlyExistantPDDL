@@ -1,11 +1,11 @@
-use std::{cell::RefCell, collections::HashMap, fmt::Debug, sync::Arc};
+use std::{cell::RefCell, collections::{HashMap, HashSet}, fmt::Debug, sync::Arc};
 
-use crate::{pddl_condition::{PDDLPredicate, PDDLPredicateName}, pddl_core::{PDDLAction, PDDLDomain, PDDLGoal}, planner::PDDLPlan};
+use crate::{pddl_condition::PDDLPredicate, pddl_core::{PDDLAction, PDDLDomain, PDDLGoal}, planner::PDDLPlan};
 
-type PDDLState<Name: PDDLPredicateName> = HashMap<Name, bool>;
+type PDDLState<Predicate> = HashMap<Predicate, bool>;
 
 
-fn build_plan<Name: PDDLPredicateName>(node: Option<Arc<PDDLPlanNode<Name>>>) -> Option<PDDLPlan<Name>> {
+fn build_plan<Predicate: PDDLPredicate>(node: Option<Arc<PDDLPlanNode<Predicate>>>) -> Option<PDDLPlan<Predicate>> {
     let mut next_node = if let Some(next_node) = node {
         next_node
     } else { // If no node was found, no plan can be generated
@@ -23,15 +23,15 @@ fn build_plan<Name: PDDLPredicateName>(node: Option<Arc<PDDLPlanNode<Name>>>) ->
     Some(plan)
 }
 
-struct PDDLPlanNode<Name: PDDLPredicateName> {
-    parent: Option<Arc<PDDLPlanNode<Name>>>,
-    action: Arc<dyn PDDLAction<Name>>,
+struct PDDLPlanNode<Predicate: PDDLPredicate> {
+    parent: Option<Arc<PDDLPlanNode<Predicate>>>,
+    action: Arc<dyn PDDLAction<Predicate>>,
     cost: f32,
-    desired_state: RefCell<PDDLState<Name>>,
+    desired_state: RefCell<PDDLState<Predicate>>,
 }
 
-impl<Name: PDDLPredicateName> PDDLPlanNode<Name> {
-    pub fn new(parent: Option<Arc<PDDLPlanNode<Name>>>, action: Arc<dyn PDDLAction<Name>>) -> Self {
+impl<Predicate: PDDLPredicate> PDDLPlanNode<Predicate> {
+    pub fn new(parent: Option<Arc<PDDLPlanNode<Predicate>>>, action: Arc<dyn PDDLAction<Predicate>>) -> Self {
         let (cost, desired_state) = if let Some(parent) = &parent {
             let desired_state = parent.desired_state.clone();
             
@@ -43,8 +43,8 @@ impl<Name: PDDLPredicateName> PDDLPlanNode<Name> {
         };
         {
             let mut borrowed = desired_state.borrow_mut();
-            for (name, value) in action.preconditions() {
-                borrowed.insert(name.clone(), *value);
+            for precondition in action.preconditions() {
+                borrowed.insert(precondition.0.clone(), precondition.1.clone());
             }
         }
         
@@ -55,27 +55,27 @@ impl<Name: PDDLPredicateName> PDDLPlanNode<Name> {
             desired_state
         }
     }
-    fn erase_effects(desired_state: &RefCell<HashMap<Name, bool>>, effects: &PDDLState<Name>) {
+    fn erase_effects(desired_state: &RefCell<PDDLState<Predicate>>, effects: &PDDLState<Predicate>) {
         let mut borrowed = desired_state.borrow_mut();
         // If a desired value is reached, we no longer have to look for it
         // and therefore we remove it from the list.
-        for (name, value) in effects {
-            let desired_value = if let Some(desired_value) = borrowed.get(name).cloned() {
+        for predicate in effects {
+            let desired_value = if let Some(desired_value) = borrowed.get(predicate.0).cloned() {
                 desired_value
             } else {
                 continue
             };
-            if desired_value == *value {
-                borrowed.remove(name);
+            if desired_value == *predicate.1 {
+                borrowed.remove(predicate.0);
             }
         }
     }
-    pub fn erase(&self, predicate: &Name) {
+    pub fn erase(&self, predicate: &Predicate) {
         let mut state = self.desired_state.borrow_mut();
         let _ = state.remove(&predicate);
     }
 }
-impl<Name: PDDLPredicateName + Debug> Debug for PDDLPlanNode<Name> {
+impl<Predicate: PDDLPredicate + Debug> Debug for PDDLPlanNode<Predicate> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PlanNode")
             .field("action", &self.action)
@@ -83,38 +83,35 @@ impl<Name: PDDLPredicateName + Debug> Debug for PDDLPlanNode<Name> {
     }
 }
 
-pub struct PDDLPlanner<Name: PDDLPredicateName> {
-    actions: Vec<Arc<dyn PDDLAction<Name>>>,
+pub struct PDDLPlanner<Predicate: PDDLPredicate> {
+    actions: Vec<Arc<dyn PDDLAction<Predicate>>>,
 }
 
-impl<Name: PDDLPredicateName> PDDLPlanner<Name> {
-    pub fn new(actions: Vec<Arc<dyn PDDLAction<Name>>>) -> Self {
+impl<Predicate: PDDLPredicate> PDDLPlanner<Predicate> {
+    pub fn new(actions: Vec<Arc<dyn PDDLAction<Predicate>>>) -> Self {
         Self {
             actions
         }
     }
-    fn has_condition(effects: &PDDLState<Name>, desired_state: &PDDLState<Name>) -> bool {
-        for (name, value) in effects {
-            if desired_state.get(name).cloned().unwrap_or(false) == *value {
-                return true
+    fn has_condition(effects: &PDDLState<Predicate>, desired_state: &PDDLState<Predicate>) -> bool {
+        for effect in effects {
+            if let Some(value) = desired_state.get(effect.0) {
+                if *value ==  *effect.1 {
+                    return true
+                }
             }
         }
         false
     }
-    fn erase_effects(desired_state: &RefCell<HashMap<Name, bool>>, effects: &HashMap<Name, Arc<dyn PDDLPredicate<PredicateName = Name>>>) {
+    /// We assume everything that is not in the HashSet is false, and everything that is in
+    /// the HashSet is true.
+    fn erase_effects(desired_state: &RefCell<HashMap<Predicate, bool>>, effects: &HashSet<Predicate>) {
         let mut borrowed = desired_state.borrow_mut();
         // If a desired value is reached, we no longer have to look for it
         // and therefore we remove it from the list.
-        for (name, value) in effects {
-            let desired_value = if let Some(desired_value) = borrowed.get(name).cloned() {
-                desired_value
-            } else {
-                continue
-            };
-            if desired_value == value.eval() {
-                borrowed.remove(name);
-            }
-        }
+        borrowed.retain(|p, add_del| {
+            effects.contains(p) != *add_del
+        });
     }
     /// # Returns
     /// A list of actions which satisfy atleast one
@@ -125,7 +122,7 @@ impl<Name: PDDLPredicateName> PDDLPlanner<Name> {
     /// 
     /// This also means that if parent does exist, then the goal
     /// does not matter.
-    fn possible_actions(&self, parent: Option<Arc<PDDLPlanNode<Name>>>, goal: &dyn PDDLGoal<Name>) -> Vec<Arc<PDDLPlanNode<Name>>> {
+    fn possible_actions(&self, parent: Option<Arc<PDDLPlanNode<Predicate>>>, goal: &dyn PDDLGoal<Predicate>) -> Vec<Arc<PDDLPlanNode<Predicate>>> {
         let mut possible = vec![];
 
         let desired_state=  if let Some(parent) = &parent {
@@ -149,18 +146,18 @@ impl<Name: PDDLPredicateName> PDDLPlanner<Name> {
         
         possible
     }
-    pub fn build_plan(&self, goal: &dyn PDDLGoal<Name>, domain: &dyn PDDLDomain<Name>) -> Option<PDDLPlan<Name>> {
+    pub fn build_plan(&self, goal: &dyn PDDLGoal<Predicate>, domain: &dyn PDDLDomain<Predicate>) -> Option<PDDLPlan<Predicate>> {
         let initial_conditions = domain.predicates();
         // Get actions which will satisfy the initial goal
         // ignoring whether the preconditions are satisfied
         let mut possible_plans = self.possible_actions(None, goal);
 
         // Create a node_stack to store nodes for processing
-        let mut node_stack: Vec<Arc<PDDLPlanNode<Name>>> = vec![];
+        let mut node_stack: Vec<Arc<PDDLPlanNode<Predicate>>> = vec![];
         node_stack.append(&mut possible_plans);
 
         let mut cheapest_cost = f32::INFINITY;
-        let mut cheapest_plan: Option<PDDLPlan<Name>> = None;
+        let mut cheapest_plan: Option<PDDLPlan<Predicate>> = None;
 
         // Loop through the actions recieved until the node_stack is empty
         while !node_stack.is_empty() {
