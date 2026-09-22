@@ -1,5 +1,5 @@
 [package]
-name = "highly_existant_pddl"
+name = "highly_existant_strips"
 version = "0.1.0"
 edition = "2024"
 
